@@ -1,0 +1,167 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Prefix:
+    Type: String
+
+  Environment:
+    Description: デプロイ環境
+    Type: String
+    AllowedValues:
+      - production
+      - staging
+    Default: staging
+
+  # ドメインを指定する場合には、証明書を作成して、arnを指定する必要がある
+  # 証明書作成 https://us-east-1.console.aws.amazon.com/acm/home?region=us-east-1#/welcome
+  # その後 PrivateDomainName を DNSに設定する必要がある
+  SSLCertArn:
+    Type: String
+
+Mappings:
+  Environments:
+    production:
+      # id domain
+      PublicDomainName: leptosystem.com
+      # end if
+
+    staging:
+      # if domain
+      PublicDomainName: stg.leptosystem.com
+      # end if
+
+Resources:
+  # ------------------------------------------------------------
+  PublicBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join
+        - "-"
+        - - !Sub ${Prefix}-www
+          - !Select
+            - 0
+            - !Split
+              - "-"
+              - !Select
+                - 2
+                - !Split
+                  - "/"
+                  - !Ref "AWS::StackId"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - Content-Type
+              - Origin
+            AllowedMethods:
+              - PUT
+            AllowedOrigins:
+              - "*"
+
+    DeletionPolicy: Retain
+
+  CloudFrontOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub access-identity-${PublicBucket}
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref PublicBucket
+      PolicyDocument:
+        Statement:
+          - Action: s3:GetObject
+            Effect: Allow
+            Resource: !Sub arn:aws:s3:::${PublicBucket}/*
+            Principal:
+              CanonicalUser: !GetAtt CloudFrontOriginAccessIdentity.S3CanonicalUserId
+
+
+  # ------------------------------------------------------------
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+
+    Properties:
+      DistributionConfig:
+        PriceClass: PriceClass_All
+        # if domain
+        Aliases:
+          - !FindInMap [ Environments, !Ref "Environment", PublicDomainName ]
+        # end if
+
+        Origins:
+          - DomainName: !GetAtt PublicBucket.RegionalDomainName
+            Id: !Sub S3origin-${PublicBucket}
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${CloudFrontOriginAccessIdentity}
+        DefaultRootObject: index.html
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: "/index.html"
+            ErrorCachingMinTTL: 10
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: "/index.html"
+            ErrorCachingMinTTL: 10
+
+        DefaultCacheBehavior:
+          TargetOriginId: !Sub S3origin-${PublicBucket}
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          DefaultTTL: 3600
+          MaxTTL: 86400
+          MinTTL: 60
+          Compress: true
+          ForwardedValues:
+            Cookies:
+              Forward: none
+            QueryString: false
+
+        ViewerCertificate:
+          # if non domain
+#          CloudFrontDefaultCertificate: true
+          # end if
+
+          # if domain
+          AcmCertificateArn: !Ref SSLCertArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+          # end if
+
+        HttpVersion: http2
+        Enabled: true
+
+# ------------------------------------------------------------
+Outputs:
+  CloudFrontArn:
+    Value: !Sub
+      - arn:aws:cloudfront::${AWS::AccountId}:distribution/${distId}
+      - distId: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub ${Prefix}-CloudFrontArn
+
+  CloudFrontDistId:
+    Value: !Ref CloudFrontDistribution
+
+  PublicBucketArn:
+    Value: !GetAtt PublicBucket.Arn
+    Export:
+      Name: !Sub ${Prefix}-PublicBucketArn
+
+  PublicBucketName:
+    Value: !Ref PublicBucket
+
+  # *** SSL ***
+  PublicDomainName:
+    Value: !FindInMap [ Environments, !Ref "Environment", PublicDomainName ]
+
+  PrivateDomainName:
+    Value: !GetAtt CloudFrontDistribution.DomainName
+    Export:
+      Name: !Sub ${Prefix}-PrivateDomainName
