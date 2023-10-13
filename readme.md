@@ -17,6 +17,7 @@
 新しいスタックを追加するたびにここに追記していく<br>
 プロジェクトルートから実行
 
+
 - 作成コマンド
 ```zsh
 npm run cloudformation:impl --proc=create --stackname=www-cloudfront --parameters=ParameterKey=SSLCertArn,ParameterValue=$SSLCertArn --filepath=file://$(pwd)/CloudFormation/www/01.cloudfront.yaml
@@ -24,7 +25,6 @@ npm run cloudformation:impl --proc=create --stackname=www-ecr                   
 npm run cloudformation:impl --proc=create --stackname=www-api                                                                        --filepath=file://$(pwd)/CloudFormation/www/03.api-gateway.yaml  
 npm run cloudformation:impl --proc=create --stackname=www-cognito                                                                    --filepath=file://$(pwd)/CloudFormation/www/04.cognito.yaml
 npm run cloudformation:impl --proc=create --stackname=www-lambda                                                                     --filepath=file://$(pwd)/CloudFormation/www/05.lambda.yaml  
-    
 ```
 
 - 更新コマンド
@@ -34,5 +34,14 @@ npm run cloudformation:impl --proc=update --stackname=www-ecr                   
 npm run cloudformation:impl --proc=udpate --stackname=www-api                                                                        --filepath=file://$(pwd)/CloudFormation/www/03.api-gateway.yaml  
 npm run cloudformation:impl --proc=update --stackname=www-cognito                                                                    --filepath=file://$(pwd)/CloudFormation/www/04.cognito.yaml  
 npm run cloudformation:impl --proc=update --stackname=www-lambda                                                                     --filepath=file://$(pwd)/CloudFormation/www/05.lambda.yaml  
-
 ```
+
+
+### デプロイ
+
+- フロント更新<br/>
+  `npm run www:ui:update`
+ 
+
+- サーバーサイド更新<br/>
+  `npm run www:api:update`

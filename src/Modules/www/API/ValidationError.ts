@@ -1,5 +1,5 @@
 import {AppRouter} from "./AppRouter";
-import {ValidationError as ValidationErrorBase} from "src/TRPC/ValidationError";
+import {ValidationError as ValidationErrorBase} from "core/TRPC/ValidationError";
 
 /**
  * バリデーションエラー
