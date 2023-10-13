@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Prefix:
+    Type: String
+
+  Environment:
+    Description: デプロイ環境
+    Type: String
+    AllowedValues:
+      - production
+      - staging
+    Default: staging
+
+#Mappings:
+#  Environments:
+#    production:
+#    staging:
+
+Resources:
+  # ------------------------------------------------------------
+  ApiLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${Prefix}-www-ApiLambda
+      Architectures:
+        - arm64
+
+      Environment:
+        Variables:
+          NODE_ENV: !Ref "Environment"
+
+      PackageType: Image
+      Code:
+        ImageUri: !Sub
+          - ${uri}:latest
+          - uri:
+              Fn::ImportValue: !Sub ${Prefix}-www-LambdaRepositoryUri
+
+      MemorySize: 128
+
+      ReservedConcurrentExecutions: 5
+      Timeout: 30
+
+      Role: !GetAtt IAMApiLambdaRole.Arn
+
+  IAMApiLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${Prefix}-api-lambda-role
+
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+
+
+      MaxSessionDuration: 3600
+
+
+  ApiDefaultRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${Prefix}-www-ApiGatewayId
+      RouteKey: $default
+
+      # 認可
+      AuthorizationType: AWS_IAM
+
+      # 統合
+      Target: !Sub integrations/${ApiLambdaIntegration}
+
+  ApiLambdaIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${Prefix}-www-ApiGatewayId
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt ApiLambda.Arn
+      PayloadFormatVersion: '2.0'
+
+  ApiLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt ApiLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub
+        - ${arn}/*
+        - arn:
+            Fn::ImportValue: !Sub ${Prefix}-www-ApiGatewayArn

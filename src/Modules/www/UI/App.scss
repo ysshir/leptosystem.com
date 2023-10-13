@@ -1,0 +1,25 @@
+@import "bootstrap/scss/functions";
+@import "bootstrap/scss/variables";
+@import 'bootstrap/scss/mixins/breakpoints';
+
+
+// 複数モーダル対応
+.modal {
+  z-index: $zindex-modal-backdrop
+}
+
+// ルートマージン
+$root-margin: 56px;
+
+.root-100vh {
+  height: calc(100vh - $root-margin);
+}
+
+#root {
+  height: 100vh;
+  padding: $root-margin 0 0;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}

@@ -160,6 +160,8 @@ Outputs:
   # *** SSL ***
   PublicDomainName:
     Value: !FindInMap [ Environments, !Ref "Environment", PublicDomainName ]
+    Export:
+      Name: !Sub ${Prefix}-PublicDomainName
 
   PrivateDomainName:
     Value: !GetAtt CloudFrontDistribution.DomainName

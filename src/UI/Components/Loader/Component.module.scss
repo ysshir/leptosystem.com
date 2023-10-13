@@ -1,0 +1,30 @@
+@import "bootstrap/scss/functions";
+@import "bootstrap/scss/variables";
+@import 'bootstrap/scss/mixins/breakpoints';
+
+.loading {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-justify-content: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  align-items: center;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 4px;
+  z-index: $zindex-modal-backdrop;
+  cursor: wait;
+}
+
+.container {
+}
+
+.message {
+  color: #666666;
+  padding-top: 20px;
+  text-align: center;
+}

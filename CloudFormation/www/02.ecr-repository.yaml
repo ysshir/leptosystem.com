@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Prefix:
+    Type: String
+  Environment:
+    Type: String
+    AllowedValues:
+      - production
+      - staging
+    Default: staging
+
+Resources:
+  # ------------------------------------------------------------
+  LambdaRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${Prefix}-www-lambda-repository
+
+      LifecyclePolicy:
+        LifecyclePolicyText: >
+          {
+            "rules": [
+              {
+                "action": {
+                  "type": "expire"
+                },
+                "selection": {
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 3,
+                  "tagStatus": "any"
+                },
+                "description": "delete old images more than 3 images",
+                "rulePriority": 1
+              }
+            ]
+          }
+
+Outputs:
+  LambdaRepositoryName:
+    Value: !Ref LambdaRepository
+
+  LambdaRepositoryUri:
+    Value: !GetAtt LambdaRepository.RepositoryUri
+    Export:
+      Name: !Sub ${Prefix}-www-LambdaRepositoryUri

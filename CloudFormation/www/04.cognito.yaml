@@ -1,0 +1,198 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Prefix:
+    Type: String
+
+  Environment:
+    Description: デプロイ環境
+    Type: String
+    AllowedValues:
+      - production
+      - staging
+    Default: staging
+
+#Mappings:
+#  Environments:
+#    production:
+#    staging:
+
+Resources:
+  # ------------------------------------------------------------
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      AliasAttributes:
+        - email
+        - preferred_username
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+
+      UserPoolName: !Sub ${Prefix}-www-UserPool
+
+      MfaConfiguration: 'OFF'
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub ${Prefix}-www-UserPoolClient
+      SupportedIdentityProviders:
+        - COGNITO
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+        - implicit
+      AllowedOAuthScopes:
+        - aws.cognito.signin.user.admin
+        - email
+        - openid
+        - phone
+      CallbackURLs:
+        - http://localhost:3000
+        - !Sub
+          - https://${domain}
+          - domain:
+              Fn::ImportValue: !Sub ${Prefix}-PublicDomainName
+
+      LogoutURLs:
+        - http://localhost:3000
+        - !Sub
+          - https://${domain}
+          - domain:
+              Fn::ImportValue: !Sub ${Prefix}-PublicDomainName
+
+      RefreshTokenValidity: 30
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub ${Prefix}-www-${Environment}
+      UserPoolId: !Ref UserPool
+
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: !Sub ${Prefix}-www
+      AllowUnauthenticatedIdentities: true
+      CognitoIdentityProviders:
+        - ClientId: !Ref UserPoolClient
+          ProviderName: !Sub cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+
+  RoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref IdentityPool
+      Roles:
+        unauthenticated: !GetAtt UnauthenticatedRole.Arn
+        authenticated: !GetAtt AuthenticatedRole.Arn
+
+  # ------------------------------------------------------------
+  UnauthenticatedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - mobileanalytics:PutEvents
+              - cognito-sync:*
+              - cognito-identity:*
+            Resource:
+              - "*"
+
+          # APIGateway
+          - Effect: "Allow"
+            Action: "execute-api:Invoke"
+            Resource: !Sub
+              - ${arn}/*/*/*
+              - arn:
+                  Fn::ImportValue: !Sub ${Prefix}-www-ApiGatewayArn
+
+  UnauthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRoleWithWebIdentity
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Condition:
+              StringEquals:
+                "cognito-identity.amazonaws.com:aud": !Ref IdentityPool
+              ForAnyValue:StringLike:
+                "cognito-identity.amazonaws.com:amr": unauthenticated
+      ManagedPolicyArns:
+        - !Ref UnauthenticatedPolicy
+
+  AuthenticatedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - mobileanalytics:PutEvents
+              - cognito-sync:*
+              - cognito-identity:*
+            Resource:
+              - "*"
+
+          # APIGateway
+          - Effect: "Allow"
+            Action: "execute-api:Invoke"
+            Resource: !Sub
+              - ${arn}/*/*/*
+              - arn:
+                  Fn::ImportValue: !Sub ${Prefix}-www-ApiGatewayArn
+
+  AuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRoleWithWebIdentity
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Condition:
+              StringEquals:
+                "cognito-identity.amazonaws.com:aud": !Ref IdentityPool
+              ForAnyValue:StringLike:
+                "cognito-identity.amazonaws.com:amr": authenticated
+      ManagedPolicyArns:
+        - !Ref AuthenticatedPolicy
+
+
+# ------------------------------------------------------------
+Outputs:
+  IdentityPoolId:
+    Value: !Ref IdentityPool
+
+  UserPoolId:
+    Value: !Ref UserPool
+
+  UserPoolArn:
+    Value: !GetAtt UserPool.Arn
+    Export:
+      Name: !Sub ${Prefix}-www-UserPoolArn
+
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+
+  UserPoolDomain:
+    Value: !Sub
+      - ${domain}.auth.${AWS::Region}.amazoncognito.com
+      - domain: !Ref UserPoolDomain
+
